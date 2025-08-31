@@ -1,0 +1,37 @@
+# Python
+venv/
+.env
+__pycache__/
+*.pyc
+
+# macOS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Node / Frontend
+01_frontend/node_modules/
+01_frontend/dist/
+npm-debug.log*
+yarn.lock
+
+# Daten & Uploads
+transactions.db
+summary_spendings.json
+uploads/
+DKB_unprocessed_files/
+DKB_processed_files/
+AMEX_unprocessed_files/
+AMEX_processed_files/
+Revolut_unprocessed_files/
+Revolut_processed_files/
+old_python_notebook/
+
+# Persönliche Konfigurationen
+keywords.json
+
+# PDFs/CSVs (Beispielmuster)
+*.pdf
+*.PDF
+*.csv
+*.CSV

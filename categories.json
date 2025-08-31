@@ -1,0 +1,78 @@
+{
+  "EINKOMMEN": {
+    "EINKÜNFTE": [
+      { "id": 1, "name": "Gehalt", "entries": [] },
+      { "id": 2, "name": "Sonstige Einnahmen", "entries": [] },
+      { "id": 3, "name": "Miete Lina", "entries": [] },
+      { "id": 4, "name": "Tricount", "entries": [] }
+    ]
+  },
+  "AUSGABEN": {
+    "Tägl. Leben": [
+      { "id": 5, "name": "Lebensmittel, Drogeriemarkt", "entries": [] },
+      { "id": 6, "name": "Öffentlicher Personenverkehr", "entries": [] },
+      { "id": 7, "name": "Kantine", "entries": [] },
+      { "id": 8, "name": "Essen gehen (Restaurant, Café, Bäcker)", "entries": [] },
+      { "id": 9, "name": "Bargeld", "entries": [] },
+      { "id": 10, "name": "Kleidung", "entries": [] },
+      { "id": 11, "name": "Friseur", "entries": [] },
+      { "id": 12, "name": "Geschenke", "entries": [] },
+      { "id": 13, "name": "Anschaffungen", "entries": [] }
+    ],
+    "WOHNUNG": [
+      { "id": 14, "name": "Miete", "entries": [] },
+      { "id": 15, "name": "Strom", "entries": [] },
+      { "id": 16, "name": "GEZ", "entries": [] },
+      { "id": 17, "name": "Internet", "entries": [] }
+    ],
+    "UNTERHALTUNG": [
+      { "id": 18, "name": "Strato, GoDaddy (August), Apple Cloud", "entries": [] },
+      { "id": 19, "name": "Netflix", "entries": [] },
+      { "id": 20, "name": "Disney Plus", "entries": [] },
+      { "id": 21, "name": "Amazon Prime", "entries": [] },
+      { "id": 22, "name": "Spotify/Apple Music", "entries": [] },
+      { "id": 23, "name": "Audible", "entries": [] },
+      { "id": 24, "name": "Eintritte (Museum, Zoo etc.)", "entries": [] },
+      { "id": 25, "name": "Bücher (inkl. Bücherhallen), Spiele etc", "entries": [] }
+    ],
+    "GESUNDHEIT": [
+      { "id": 26, "name": "Volkswohlbund BU", "entries": [] },
+      { "id": 27, "name": "Arzt, Apotheke etc.", "entries": [] },
+      { "id": 28, "name": "Brille (inkl. Versicherung)", "entries": [] },
+      { "id": 29, "name": "ARAG Krankenversicherung (April)", "entries": [] }
+    ],
+    "URLAUB": [
+      { "id": 30, "name": "Fahr-/Flugpreis", "entries": [] },
+      { "id": 31, "name": "Unterbringung", "entries": [] },
+      { "id": 32, "name": "Essen", "entries": [] },
+      { "id": 33, "name": "Souvenirs", "entries": [] },
+      { "id": 34, "name": "Eintritte", "entries": [] },
+      { "id": 35, "name": "Mietwagen", "entries": [] }
+    ],
+    "Gebuehren/Abos": [
+      { "id": 36, "name": "Konto DKB", "entries": [] },
+      { "id": 53, "name": "AMEX", "entries": [] },
+      { "id": 37, "name": "Aldi Talk", "entries": [] },
+      { "id": 38, "name": "SPD", "entries": [] },
+      { "id": 39, "name": "M&M Kreditkarte", "entries": [] },
+      { "id": 40, "name": "Fernsehlotterie", "entries": [] },
+      { "id": 41, "name": "Spenden", "entries": [] }
+    ],
+    "sonst. Versicherungen": [
+      { "id": 42, "name": "Hausrat", "entries": [] },
+      { "id": 43, "name": "Rechtschutz (September)", "entries": [] },
+      { "id": 44, "name": "Haftpflicht", "entries": [] },
+      { "id": 45, "name": "Reise", "entries": [] },
+      { "id": 46, "name": "LV 1871", "entries": [] },
+      { "id": 47, "name": "L&R Jahresbeitrag", "entries": [] },
+      { "id": 48, "name": "Continentale Privat und Basisrente", "entries": [] },
+      { "id": 49, "name": "Hanse Merkur (Brille) März", "entries": [] },
+      { "id": 50, "name": "Alte Leipziger", "entries": [] }
+    ],
+    "Jahresbeitraege": [
+      { "id": 51, "name": "DAV", "entries": [] },
+      { "id": 52, "name": "BoardgameArena Februar", "entries": [] }
+    ],
+    "Sonstiges": []
+  }
+}
