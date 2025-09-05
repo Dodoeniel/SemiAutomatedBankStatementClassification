@@ -44,7 +44,7 @@ flask run --port 8000
 ### Frontend (lokal)
 
 ```bash
-cd 01_frontend
+cd frontend
 npm install
 npm run dev
 ```
@@ -70,7 +70,7 @@ Hinweis: Nginx leitet die Requests an das Frontend (Port 5080) und Backend (Port
 PythonBankStatement/
 ├── backend.py            # Flask Server mit API Endpoints
 ├── database.db           # SQLite Datenbank
-├── 01_frontend/          # Vue 3 + Vuetify Frontend
+├── frontend/          # Vue 3 + Vuetify Frontend
 └── README.md             # Diese Datei
 ```
 
