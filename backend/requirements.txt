@@ -1,0 +1,5 @@
+pdfplumber
+flask
+flask_cors
+pandas
+sqlite3
