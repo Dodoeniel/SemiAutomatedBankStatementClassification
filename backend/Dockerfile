@@ -13,4 +13,4 @@ COPY . /app
 # Gunicorn in Produktion
 ENV PORT=8000
 EXPOSE 8000
-CMD ["gunicorn", "-w", "3", "-k", "gthread", "-b", "0.0.0.0:8000", "backend:app", "--forwarded-allow-ips=*"]
+CMD ["gunicorn", "-w", "3", "-k", "gthread", "-b", "0.0.0.0:8000", "app:app", "--forwarded-allow-ips=*"]
