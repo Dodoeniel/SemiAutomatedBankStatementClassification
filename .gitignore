@@ -29,9 +29,11 @@ old_python_notebook/
 
 # Persönliche Konfigurationen
 keywords.json
+budget.d-schoepflin.de.conf
 
 # PDFs/CSVs (Beispielmuster)
 *.pdf
 *.PDF
 *.csv
 *.CSV
+
