@@ -45,6 +45,7 @@
 <script setup>
 import { ref } from 'vue'
 import axios from 'axios'
+const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
 const selectedBank = ref('')
 const selectedFile = ref(null)
@@ -63,7 +64,7 @@ async function uploadFile() {
     formData.append('file', selectedFile.value)
     formData.append('bank', selectedBank.value)
 
-    const res = await axios.post('http://localhost:8000/upload-statement', formData, {
+    const res = await axios.post(`${API_BASE}/upload-statement`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
 

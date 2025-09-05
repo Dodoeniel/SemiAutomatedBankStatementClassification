@@ -25,6 +25,7 @@
 
 <script setup>
 import axios from 'axios'
+const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 import { ref, onMounted, watch } from 'vue'
 import { Bar } from 'vue-chartjs'
 import { Chart, BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend } from 'chart.js'
@@ -42,7 +43,7 @@ const chartOptions = {
 async function loadChartData() {
   loading.value = true
   try {
-    const res = await axios.get(`http://localhost:8000/summary_spendings_monthly?type=${viewType.value}`)
+    const res = await axios.get(`${API_BASE}/summary_spendings_monthly?type=${viewType.value}`)
     let payload
     if (viewType.value === 'expenses') payload = res.data.expenses
     else if (viewType.value === 'incomes') payload = res.data.incomes

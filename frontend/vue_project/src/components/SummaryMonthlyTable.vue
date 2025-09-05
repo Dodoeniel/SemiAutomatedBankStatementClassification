@@ -146,6 +146,7 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue'
 import axios from 'axios'
+const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
 // Feste Monatsköpfe (Jan..Dez)
 const MONTHS_SHORT = ['JAN','FEB','MRZ','APR','MAI','JUN','JUL','AUG','SEP','OKT','NOV','DEZ']
@@ -169,7 +170,7 @@ async function loadCellDetails(type, name, ym) {
   if (detailsCache[key]) return
   cellLoading.value = true
   try {
-    const res = await axios.get('http://localhost:8000/transactions/by_month_category', {
+    const res = await axios.get(`${API_BASE}/transactions/by_month_category`, {
       params: { type: type === 'income' ? 'incomes' : 'expenses', category: name, ym }
     })
     detailsCache[key] = res.data
@@ -240,7 +241,7 @@ function fmtDate(iso) {
 async function loadData() {
   loading.value = true
   try {
-    const res = await axios.get('http://localhost:8000/summary_spendings_monthly?type=all')
+    const res = await axios.get(`${API_BASE}/summary_spendings_monthly?type=all`)
     // Struktur: { expenses: {months,categories,data}, incomes: {months,categories,data} }
     expenses.value = res.data.expenses || { months: [], categories: [], data: {} }
     incomes.value  = res.data.incomes  || { months: [], categories: [], data: {} }

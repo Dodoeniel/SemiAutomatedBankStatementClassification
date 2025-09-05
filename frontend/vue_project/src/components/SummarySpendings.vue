@@ -48,12 +48,13 @@
 <script setup>
 import { ref, onMounted, computed} from "vue";
 import axios from "axios";
+const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
 const summary = ref({});
 
 async function loadSummary() {
   try {
-    const res = await axios.get("http://localhost:8000/summary_spendings");
+    const res = await axios.get(`${API_BASE}/summary_spendings`);
     summary.value = res.data;
   } catch (err) {
     console.error("Fehler beim Laden der Summary:", err);

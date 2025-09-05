@@ -99,6 +99,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import axios from 'axios'
+const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
 const loading = ref(false)
 const errorMsg = ref('')
@@ -181,7 +182,7 @@ async function load() {
   errorMsg.value = ''
   try {
     // Kategorien laden
-    const catsRes = await axios.get('http://localhost:8000/categories')
+    const catsRes = await axios.get(`${API_BASE}/categories`)
     Object.assign(categories, catsRes.data)
 
     // Versuche neuen All-Transactions-Endpoint mit Filtern
@@ -192,11 +193,11 @@ async function load() {
 
     let txRes
     try {
-      txRes = await axios.get('http://localhost:8000/transactions', { params })
+      txRes = await axios.get(`${API_BASE}/transactions`, { params })
     } catch (e) {
       // Fallback auf bestehenden Unclassified-Endpoint, wenn 404
       if (filters.classified === 'unclassified') {
-        txRes = await axios.get('http://localhost:8000/transactions/unclassified')
+        txRes = await axios.get(`${API_BASE}/transactions/unclassified`)
       } else {
         throw e
       }
@@ -262,7 +263,7 @@ async function saveClassification(txId) {
     return
   }
   try {
-    await axios.post('http://localhost:8000/transactions/classify', {
+    await axios.post(`${API_BASE}/transactions/classify`, {
       transaction_id: txId,
       category_type: 'verwendungszweck',
       category_id: String(sub.id),
@@ -286,7 +287,7 @@ async function addKeywordFromTx(txId) {
   const sel = selections[txId]
   const sub = subOptions(txId).find(s => s.name === sel.subcategory)
   try {
-    await axios.post('http://localhost:8000/keywords', {
+    await axios.post(`${API_BASE}/keywords`, {
       keyword: kw,
       category: 'AUSGABEN',
       subcategory: sel.category || '',
@@ -301,7 +302,7 @@ async function addKeywordFromTx(txId) {
 
 async function deleteTransaction(txId) {
   try {
-    await axios.delete(`http://localhost:8000/transactions/${txId}`)
+    await axios.delete(`${API_BASE}/transactions/${txId}`)
     transactions.value = transactions.value.filter(t => t.id !== txId)
     delete selections[txId]
   } catch (error) {
