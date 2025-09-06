@@ -54,7 +54,9 @@ def to_year_month(d) -> Optional[str]:
 APP_DIR = os.path.dirname(__file__)
 # Allow overriding storage paths via environment variables (for Docker volumes)
 DATA_DIR = os.getenv("DATA_DIR", APP_DIR)
-CATEGORIES_PATH = os.getenv("CATEGORIES_PATH", os.path.join(DATA_DIR, "categories.json"))
+# categories.json ist Teil des Images/Repos → standardmäßig aus APP_DIR laden (nicht aus DATA_DIR),
+# aber weiterhin über CATEGORIES_PATH überschreibbar.
+CATEGORIES_PATH = os.getenv("CATEGORIES_PATH", os.path.join(APP_DIR, "categories.json"))
 KEYWORDS_PATH = os.getenv("KEYWORDS_PATH", os.path.join(DATA_DIR, "keywords.json"))
 SUMMARY_PATH = os.getenv("SUMMARY_PATH", os.path.join(DATA_DIR, "summary_spendings.json"))
 DB_PATH = os.getenv("DB_PATH", os.path.join(DATA_DIR, "transactions.db"))
