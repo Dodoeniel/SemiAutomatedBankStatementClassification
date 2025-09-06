@@ -2,6 +2,10 @@ services:
   backend:
     build: ./backend
     # env_file: ./backend/.env  # nur wenn du sie hast
+    environment:
+      DATA_DIR: /data  
+    volumes:
+      - ./volumes/backend-data:/data
     ports:
       - "127.0.0.1:5800:8000"   # nur lokal erreichbar
     restart: unless-stopped
