@@ -4,6 +4,7 @@ services:
     # env_file: ./backend/.env  # nur wenn du sie hast
     environment:
       DATA_DIR: /data  
+      KEYWORDS_PATH: /data/keywords.json
     volumes:
       - ./volumes/backend-data:/data
     ports:
