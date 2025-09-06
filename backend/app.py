@@ -235,29 +235,154 @@ def read_amex_statement_pdf(file_bytes) -> pd.DataFrame:
 
     return df
 
+import csv
+
 def read_revolut_statement_csv(file_bytes) -> pd.DataFrame:
-    df = pd.read_csv(io.BytesIO(file_bytes), delimiter=',')
-    # Header ggf. reparieren
-    if df.columns[0] != "Type":
-        df.columns = df.iloc[0]
-        df = df[1:]
-    # Unnötige Spalten entfernen
-    drop_cols = ["Type", "Product", "Completed Date", "Fee", "State", "Balance"]
-    for c in drop_cols:
-        if c in df.columns:
-            df = df.drop(columns=[c])
-    # Datum parsen
-    if "Started Date" in df.columns:
-        df["Started Date"] = pd.to_datetime(df["Started Date"]).dt.strftime('%Y-%m-%d')    # Betrag als float
-    if "Amount" in df.columns:
-        df["Amount"] = df["Amount"].astype(float)
-    df.reset_index(drop=True, inplace=True)
-    return df
+    """
+    Parser für Revolut-CSV (deutschsprachiger Export).
+    Erwartete Spalten:
+      Art | Produkt | Datum des Beginns | Datum des Abschlusses | Beschreibung | Betrag | Gebühr | Währung | Status | Kontostand
+    Gibt ein normalisiertes DF zurück mit Spalten: ["Started Date", "Description", "Merchant", "Amount"].
+    Wenn die erwarteten Header nicht vorhanden sind, fällt es auf den generischen Parser zurück.
+    """
+    # 1) Header lesen (UTF-8 mit BOM tolerieren) und Trennzeichen heuristisch bestimmen
+    try:
+        head = file_bytes[:8192].decode('utf-8-sig', errors='ignore')
+    except Exception:
+        head = str(file_bytes[:8192])
+    delim = ';' if head.count(';') > head.count(',') else ','
+
+    # 2) CSV einlesen
+    df = pd.read_csv(io.BytesIO(file_bytes), sep=delim, engine='python')
+
+    # 3) Header säubern
+    def clean_col(c):
+        return str(c).lstrip('\ufeff').strip()
+    df.columns = [clean_col(c) for c in df.columns]
+
+    # 4) Prüfe auf deutsches Schema
+    expected = {
+        'Art', 'Produkt', 'Datum des Beginns', 'Datum des Abschlusses',
+        'Beschreibung', 'Betrag', 'Gebühr', 'Währung', 'Status', 'Kontostand'
+    }
+    cols = set(df.columns)
+
+    if expected.issubset(cols):
+        # --- Deutsches Schema ---
+        # Datum (NaT-safe, store None for missing)
+        started_dt = pd.to_datetime(df['Datum des Beginns'], errors='coerce', dayfirst=True)
+        started = started_dt.dt.strftime('%Y-%m-%d')
+        # Replace NaT with None explicitly
+        started = started.astype(object).where(started_dt.notna(), None)
+        # Beschreibung
+        description = df['Beschreibung'].astype(str)
+        # Merchant: Revolut hat hier nicht immer einen separaten Merchant → leer lassen oder aus Beschreibung ableiten
+        merchant = pd.Series([""] * len(df))
+        # Betrag: deutsches Format → parse_betrag
+        amount = df['Betrag'].apply(parse_betrag)
+
+        out = pd.DataFrame({
+            'Started Date': started,
+            'Description': description,
+            'Merchant': merchant,
+            'Amount': amount,
+        })
+        # Zeilen entfernen, die offensichtlich keine Transaktion sind (leeres Datum + leere Beschreibung)
+        out = out[~(out['Started Date'].isna() & (out['Description'].str.strip() == ''))]
+        out.reset_index(drop=True, inplace=True)
+        return out
+
+    # --- Fallback auf generischen Parser, falls deutsches Schema nicht zutrifft ---
+    # (Belasse hier die bisherige generische Implementierung aus der vorherigen Version)
+
+    # 4) Lowercase map für flexible Zuordnung
+    lower_map = {c.lower(): c for c in df.columns}
+
+    date_candidates = [
+        'started date', 'date', 'created date', 'completed date', 'datetime', 'timestamp'
+    ]
+    amount_candidates = [
+        'amount', 'amount (eur)', 'amount eur', 'total', 'value', 'sum'
+    ]
+    desc_candidates = [
+        'description', 'reference', 'notes', 'narrative', 'label', 'purpose', 'payment reference'
+    ]
+    merchant_candidates = [
+        'merchant', 'merchant name', 'beneficiary', 'beneficiary name', 'counterparty', 'name', 'payee'
+    ]
+
+    def pick(cols):
+        for k in cols:
+            if k in lower_map:
+                return lower_map[k]
+        return None
+
+    date_col = pick(date_candidates)
+    amount_col = pick(amount_candidates)
+    desc_col = pick(desc_candidates)
+    merchant_col = pick(merchant_candidates)
+
+    if not desc_col and 'type' in lower_map:
+        desc_col = lower_map['type']
+    if not merchant_col and 'merchant' in lower_map:
+        merchant_col = lower_map['merchant']
+
+    # Datum normalisieren
+    if date_col and date_col in df.columns:
+        started_dt = pd.to_datetime(df[date_col], errors='coerce')
+        if started_dt.isna().mean() > 0.5:
+            started_dt = pd.to_datetime(df[date_col], errors='coerce', dayfirst=True)
+        started = started_dt.dt.strftime('%Y-%m-%d')
+        started = started.astype(object).where(started_dt.notna(), None)
+    else:
+        started = pd.Series([None] * len(df))
+
+    # Betrag normalisieren
+    if amount_col and amount_col in df.columns:
+        amount = df[amount_col].apply(parse_betrag)
+    else:
+        amount = pd.Series([0.0] * len(df))
+
+    # Beschreibung & Merchant
+    if desc_col and desc_col in df.columns:
+        description = df[desc_col].astype(str)
+    elif merchant_col and merchant_col in df.columns:
+        description = df[merchant_col].astype(str)
+    else:
+        maybe_cols = [c for c in df.columns if c.lower() in ('description','reference','notes','label','type','category')]
+        description = df[maybe_cols].astype(str).apply(lambda r: ' '.join([x for x in r if x and x != 'nan']), axis=1) if maybe_cols else pd.Series([""] * len(df))
+
+    merchant = df[merchant_col].astype(str) if merchant_col and merchant_col in df.columns else pd.Series([""] * len(df))
+
+    out = pd.DataFrame({
+        'Started Date': started,
+        'Description': description,
+        'Merchant': merchant,
+        'Amount': amount,
+    })
+    out = out[~(out['Started Date'].isna() & (out['Description'].astype(str).str.strip() == ''))]
+    out.reset_index(drop=True, inplace=True)
+    return out
 
 
 def insert_transactions_from_df(df: pd.DataFrame):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
+    def _nn(v):
+        """Normalize value: return None for NaN/NaT/empty strings, else str(v)."""
+        if v is None:
+            return None
+        try:
+            import math
+            if isinstance(v, float) and math.isnan(v):
+                return None
+        except Exception:
+            pass
+        s = str(v).strip()
+        if s == '' or s.lower() in ('nan', 'nat', 'none'):
+            return None
+        return s
+
     for _, row in df.iterrows():
         buchungsdatum = row.get('Buchungsdatum') or row.get('Datum') or row.get('Started Date') or ''
         zahlungsempfaenger = row.get('Zahlungsempfänger*in') or row.get('Merchant') or ''
@@ -278,19 +403,18 @@ def insert_transactions_from_df(df: pd.DataFrame):
                 category_empfaenger, category_pflichtig, category_verwendungszweck, final_category, processed
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
         """, (
-            str(buchungsdatum) if buchungsdatum is not None else None,
-            str(zahlungsempfaenger) if zahlungsempfaenger is not None else None,
-            str(verwendungszweck) if verwendungszweck is not None else None,
-            str(betrag_value) if betrag_value is not None else None,
-            str(cat_empf) if cat_empf is not None else None,
-            str(cat_pfl) if cat_pfl is not None else None,
-            str(cat_verw) if cat_verw is not None else None,
+            _nn(buchungsdatum),
+            _nn(zahlungsempfaenger),
+            _nn(verwendungszweck),
+            _nn(betrag_value),
+            _nn(cat_empf),
+            _nn(cat_pfl),
+            _nn(cat_verw),
             int(final_cat) if (
                 isinstance(final_cat, (int, float)) or
-                (isinstance(final_cat, str) and final_cat.isdigit())
-            ) else (
-                int(final_cat) if isinstance(final_cat, str) and final_cat and final_cat.replace('-', '').isdigit() else None
-            )
+                (isinstance(final_cat, str) and final_cat.isdigit()) or
+                (isinstance(final_cat, str) and final_cat and final_cat.replace('-', '').isdigit())
+            ) else None
         ))
     conn.commit()
     conn.close()
