@@ -52,11 +52,12 @@ def to_year_month(d) -> Optional[str]:
     return None
 
 APP_DIR = os.path.dirname(__file__)
-CATEGORIES_PATH = os.path.join(APP_DIR, "categories.json")
-KEYWORDS_PATH = os.path.join(APP_DIR, "keywords.json")
-SUMMARY_PATH = os.path.join(APP_DIR, "summary_spendings.json")
-
-DB_PATH = os.path.join(APP_DIR, "transactions.db")
+# Allow overriding storage paths via environment variables (for Docker volumes)
+DATA_DIR = os.getenv("DATA_DIR", APP_DIR)
+CATEGORIES_PATH = os.getenv("CATEGORIES_PATH", os.path.join(DATA_DIR, "categories.json"))
+KEYWORDS_PATH = os.getenv("KEYWORDS_PATH", os.path.join(DATA_DIR, "keywords.json"))
+SUMMARY_PATH = os.getenv("SUMMARY_PATH", os.path.join(DATA_DIR, "summary_spendings.json"))
+DB_PATH = os.getenv("DB_PATH", os.path.join(DATA_DIR, "transactions.db"))
 
 # --- Simple DB helper (sqlite) ---
 def init_db():
@@ -239,128 +240,65 @@ import csv
 
 def read_revolut_statement_csv(file_bytes) -> pd.DataFrame:
     """
-    Parser für Revolut-CSV (deutschsprachiger Export).
-    Erwartete Spalten:
-      Art | Produkt | Datum des Beginns | Datum des Abschlusses | Beschreibung | Betrag | Gebühr | Währung | Status | Kontostand
-    Gibt ein normalisiertes DF zurück mit Spalten: ["Started Date", "Description", "Merchant", "Amount"].
-    Wenn die erwarteten Header nicht vorhanden sind, fällt es auf den generischen Parser zurück.
+    Schlanker Parser für den deutschen Revolut-Export.
+    Erwartete Header:
+      Art | Produkt | Datum des Beginns | Datum des Abschlusses | Beschreibung | Betrag | Gebühr | Währung | Status [| Kontostand]
+    ("Kontostand" ist optional.)
+
+    Mapping → einheitliches Schema (wie DKB/AMEX):
+      - Buchungsdatum        := Datum des Beginns, sonst Datum des Abschlusses (YYYY-MM-DD)
+      - Verwendungszweck     := Beschreibung
+      - Zahlungsempfänger*in := Beschreibung (kein separates Feld vorhanden)
+      - Betrag (€)           := normalisiert (Dezimalpunkt, keine Tausender)
     """
-    # 1) Header lesen (UTF-8 mit BOM tolerieren) und Trennzeichen heuristisch bestimmen
+    # Delimiter-Heuristik: Tab vor Semikolon vor Komma
     try:
         head = file_bytes[:8192].decode('utf-8-sig', errors='ignore')
     except Exception:
         head = str(file_bytes[:8192])
-    delim = ';' if head.count(';') > head.count(',') else ','
+    if head.count('\t') >= max(head.count(';'), head.count(',')):
+        delim = '\t'
+    elif head.count(';') >= head.count(','):
+        delim = ';'
+    else:
+        delim = ','
 
-    # 2) CSV einlesen
+    # CSV einlesen
     df = pd.read_csv(io.BytesIO(file_bytes), sep=delim, engine='python')
 
-    # 3) Header säubern
+    # Header säubern
     def clean_col(c):
         return str(c).lstrip('\ufeff').strip()
     df.columns = [clean_col(c) for c in df.columns]
 
-    # 4) Prüfe auf deutsches Schema
-    expected = {
-        'Art', 'Produkt', 'Datum des Beginns', 'Datum des Abschlusses',
-        'Beschreibung', 'Betrag', 'Gebühr', 'Währung', 'Status', 'Kontostand'
-    }
-    cols = set(df.columns)
+    # Pflichtspalten (Kontostand optional)
+    required = ['Art', 'Produkt', 'Datum des Beginns', 'Datum des Abschlusses', 'Beschreibung', 'Betrag', 'Gebühr', 'Währung', 'Status']
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"Revolut CSV: erwartete Spalten fehlen: {', '.join(missing)}")
 
-    if expected.issubset(cols):
-        # --- Deutsches Schema ---
-        # Datum (NaT-safe, store None for missing)
-        started_dt = pd.to_datetime(df['Datum des Beginns'], errors='coerce', dayfirst=True)
-        started = started_dt.dt.strftime('%Y-%m-%d')
-        # Replace NaT with None explicitly
-        started = started.astype(object).where(started_dt.notna(), None)
-        # Beschreibung
-        description = df['Beschreibung'].astype(str)
-        # Merchant: Revolut hat hier nicht immer einen separaten Merchant → leer lassen oder aus Beschreibung ableiten
-        merchant = pd.Series([""] * len(df))
-        # Betrag: deutsches Format → parse_betrag
-        amount = df['Betrag'].apply(parse_betrag)
+    # Datum: bevorzugt Beginn, sonst Abschluss (beide können DateTime sein)
+    start_dt = pd.to_datetime(df['Datum des Beginns'], errors='coerce')
+    done_dt  = pd.to_datetime(df['Datum des Abschlusses'], errors='coerce')
+    used_dt  = start_dt.where(start_dt.notna(), done_dt)
+    buchungsdatum = used_dt.dt.strftime('%Y-%m-%d').astype(object).where(used_dt.notna(), None)
 
-        out = pd.DataFrame({
-            'Started Date': started,
-            'Description': description,
-            'Merchant': merchant,
-            'Amount': amount,
-        })
-        # Zeilen entfernen, die offensichtlich keine Transaktion sind (leeres Datum + leere Beschreibung)
-        out = out[~(out['Started Date'].isna() & (out['Description'].str.strip() == ''))]
-        out.reset_index(drop=True, inplace=True)
-        return out
-
-    # --- Fallback auf generischen Parser, falls deutsches Schema nicht zutrifft ---
-    # (Belasse hier die bisherige generische Implementierung aus der vorherigen Version)
-
-    # 4) Lowercase map für flexible Zuordnung
-    lower_map = {c.lower(): c for c in df.columns}
-
-    date_candidates = [
-        'started date', 'date', 'created date', 'completed date', 'datetime', 'timestamp'
-    ]
-    amount_candidates = [
-        'amount', 'amount (eur)', 'amount eur', 'total', 'value', 'sum'
-    ]
-    desc_candidates = [
-        'description', 'reference', 'notes', 'narrative', 'label', 'purpose', 'payment reference'
-    ]
-    merchant_candidates = [
-        'merchant', 'merchant name', 'beneficiary', 'beneficiary name', 'counterparty', 'name', 'payee'
-    ]
-
-    def pick(cols):
-        for k in cols:
-            if k in lower_map:
-                return lower_map[k]
-        return None
-
-    date_col = pick(date_candidates)
-    amount_col = pick(amount_candidates)
-    desc_col = pick(desc_candidates)
-    merchant_col = pick(merchant_candidates)
-
-    if not desc_col and 'type' in lower_map:
-        desc_col = lower_map['type']
-    if not merchant_col and 'merchant' in lower_map:
-        merchant_col = lower_map['merchant']
-
-    # Datum normalisieren
-    if date_col and date_col in df.columns:
-        started_dt = pd.to_datetime(df[date_col], errors='coerce')
-        if started_dt.isna().mean() > 0.5:
-            started_dt = pd.to_datetime(df[date_col], errors='coerce', dayfirst=True)
-        started = started_dt.dt.strftime('%Y-%m-%d')
-        started = started.astype(object).where(started_dt.notna(), None)
-    else:
-        started = pd.Series([None] * len(df))
+    # Beschreibung → Zweck und Empfänger
+    beschreibung = df['Beschreibung'].astype(str).fillna("").str.strip()
 
     # Betrag normalisieren
-    if amount_col and amount_col in df.columns:
-        amount = df[amount_col].apply(parse_betrag)
-    else:
-        amount = pd.Series([0.0] * len(df))
-
-    # Beschreibung & Merchant
-    if desc_col and desc_col in df.columns:
-        description = df[desc_col].astype(str)
-    elif merchant_col and merchant_col in df.columns:
-        description = df[merchant_col].astype(str)
-    else:
-        maybe_cols = [c for c in df.columns if c.lower() in ('description','reference','notes','label','type','category')]
-        description = df[maybe_cols].astype(str).apply(lambda r: ' '.join([x for x in r if x and x != 'nan']), axis=1) if maybe_cols else pd.Series([""] * len(df))
-
-    merchant = df[merchant_col].astype(str) if merchant_col and merchant_col in df.columns else pd.Series([""] * len(df))
+    betrag = df['Betrag'].apply(parse_betrag)
+    betrag_str = betrag.apply(lambda x: f"{float(x):.2f}" if pd.notna(x) else "")
 
     out = pd.DataFrame({
-        'Started Date': started,
-        'Description': description,
-        'Merchant': merchant,
-        'Amount': amount,
+        'Buchungsdatum': buchungsdatum,
+        'Zahlungsempfänger*in': beschreibung,
+        'Verwendungszweck': beschreibung,
+        'Betrag (€)': betrag_str,
     })
-    out = out[~(out['Started Date'].isna() & (out['Description'].astype(str).str.strip() == ''))]
+
+    # Zeilen ohne Datum UND ohne Zweck aussieben
+    out = out[~(out['Buchungsdatum'].isna() & (out['Verwendungszweck'].str.strip() == ''))]
     out.reset_index(drop=True, inplace=True)
     return out
 
@@ -384,7 +322,14 @@ def insert_transactions_from_df(df: pd.DataFrame):
         return s
 
     for _, row in df.iterrows():
-        buchungsdatum = row.get('Buchungsdatum') or row.get('Datum') or row.get('Started Date') or ''
+        buchungsdatum = (
+            row.get('Buchungsdatum')
+            or row.get('Datum')
+            or row.get('Started Date')
+            or row.get('Datum des Beginns')
+            or row.get('Datum des Abschlusses')
+            or ''
+        )
         zahlungsempfaenger = row.get('Zahlungsempfänger*in') or row.get('Merchant') or ''
         verwendungszweck = row.get('Verwendungszweck') or row.get('Description') or ''
         betrag_value = row.get('Betrag (€)') or row.get('Betrag') or row.get('Amount') or ''
