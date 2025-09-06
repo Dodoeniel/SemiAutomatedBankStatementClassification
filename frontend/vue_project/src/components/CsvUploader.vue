@@ -3,7 +3,8 @@
     <v-card-title>Bank Statement hochladen</v-card-title>
     <v-card-text>
       <v-radio-group v-model="selectedBank" inline>
-        <v-radio label="DKB" value="dkb" > </v-radio>
+        <v-radio label="DKB Girokonto" value="dkb" > </v-radio>
+        <v-radio label="DKB Kreditkarte" value="dkb_credit"></v-radio>
         <v-radio label="Revolut" value="revolut" > </v-radio>
         <v-radio label="American Express" value="amex" > </v-radio>
       </v-radio-group>
@@ -53,6 +54,8 @@ const loading = ref(false)
 const message = ref('')
 const error = ref(false)
 
+console.log('VITE_API_BASE:', import.meta.env.VITE_API_BASE);
+
 async function uploadFile() {
   if (!selectedFile.value || !selectedBank.value) return
   loading.value = true
@@ -64,11 +67,17 @@ async function uploadFile() {
     formData.append('file', selectedFile.value)
     formData.append('bank', selectedBank.value)
 
-    const res = await axios.post(`${API_BASE}/upload-statement`, formData, {
+    // Ziel-Endpoint je nach Bank
+    const endpoint = selectedBank.value === 'dkb_credit'
+      ? `${API_BASE}/upload-statement-dkb-credit`
+      : `${API_BASE}/upload-statement`
+
+    const res = await axios.post(endpoint, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
 
     message.value = `Erfolgreich hochgeladen: ${res.data.inserted} Einträge`
+    selectedFile.value = null
   } catch (err) {
     error.value = true
     message.value = err.response?.data?.detail || 'Fehler beim Hochladen'

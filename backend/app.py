@@ -187,6 +187,106 @@ def read_dkb_statement_csv_bytes(file_bytes) -> pd.DataFrame:
 
     return df
 
+# --- DKB Kreditkartenumsätze (separate CSV layout) ---
+def read_dkb_credit_csv_bytes(file_bytes) -> pd.DataFrame:
+    """
+    Parser für DKB Kreditkartenumsätze (CSV-Export mit Kopfzeilen wie
+    "Karte ...", "Saldo vom ..." und dann einer Tabelle mit:
+    Belegdatum | Wertstellung | Status | Beschreibung | Umsatztyp | Betrag (€) | Fremdwährungsbetrag
+
+    Gibt zurück im gemeinsamen Schema: Buchungsdatum, Zahlungsempfänger*in, Verwendungszweck, Betrag (€).
+    """
+    # 1) Rohtext laden (UTF-8 mit BOM tolerieren)
+    try:
+        text = file_bytes.decode('utf-8-sig', errors='ignore')
+    except Exception:
+        text = str(file_bytes)
+
+    # 2) Delimiter-Heuristik
+    if text.count('\t') >= max(text.count(';'), text.count(',')):
+        delim = '\t'
+    elif text.count(';') >= text.count(','):
+        delim = ';'
+    else:
+        delim = ','
+
+    # 3) Headerzeile suchen (erste Zeile, die die zentralen Spalten enthält)
+    lines = [ln for ln in text.splitlines() if ln.strip() != '']
+    header_idx = None
+    must_haves = ['Belegdatum', 'Status', 'Beschreibung', 'Betrag']
+    for i, ln in enumerate(lines):
+        # grobe Prüfung, unabhängig vom konkreten Trennzeichen
+        if all(m in ln for m in must_haves):
+            header_idx = i
+            break
+    if header_idx is None:
+        raise ValueError("DKB Kreditkarte: Tabellenkopf nicht gefunden (erwarte Spalten wie 'Belegdatum', 'Beschreibung', 'Betrag').")
+
+    table_text = "\n".join(lines[header_idx:])
+
+    # 4) CSV in DataFrame einlesen
+    df = pd.read_csv(io.StringIO(table_text), sep=delim, engine='python')
+
+    # 5) Spaltennamen säubern
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # 6) Erwartete Spalten prüfen
+    needed = ['Belegdatum', 'Beschreibung']
+    if not all(col in df.columns for col in needed):
+        raise ValueError("DKB Kreditkarte: erwartete Spalten fehlen (mind. 'Belegdatum', 'Beschreibung').")
+
+    # 7) Betrag säubern/normalisieren
+    amount_col = None
+    for c in df.columns:
+        if str(c).strip().startswith('Betrag'):
+            amount_col = c
+            break
+    if amount_col is None:
+        # Fallback auf exakt "Betrag (€)"
+        if 'Betrag (€)' in df.columns:
+            amount_col = 'Betrag (€)'
+        else:
+            raise ValueError("DKB Kreditkarte: Betrag-Spalte nicht gefunden.")
+
+    df[amount_col] = df[amount_col].apply(parse_betrag)
+
+    # 8) Datum parsen (Belegdatum bevorzugt)
+    def _parse_cc_date(s):
+        if pd.isna(s):
+            return None
+        s = str(s).strip()
+        # typische Formen: 03.09.25 / 03.09.2025 / 2025-09-03
+        for fmt in ("%d.%m.%y", "%d.%m.%Y", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+            try:
+                return datetime.strptime(s, fmt).strftime('%Y-%m-%d')
+            except Exception:
+                pass
+        try:
+            dt = pd.to_datetime(s, errors='coerce', dayfirst=True)
+            if pd.notna(dt):
+                return dt.strftime('%Y-%m-%d')
+        except Exception:
+            pass
+        return None
+
+    buchungsdatum = df['Belegdatum'].apply(_parse_cc_date)
+
+    # 9) Beschreibung → Zweck & (mangels Feld) auch Empfänger
+    beschreibung = df['Beschreibung'].astype(str).fillna('').str.strip()
+
+    # 10) Output in einheitliches Schema bringen
+    out = pd.DataFrame({
+        'Buchungsdatum': buchungsdatum,
+        'Zahlungsempfänger*in': beschreibung,  # kein separates Empfängerfeld im Export
+        'Verwendungszweck': beschreibung,
+        'Betrag (€)': df[amount_col].apply(lambda x: f"{float(x):.2f}" if pd.notna(x) else ""),
+    })
+
+    # 11) Leere Zeilen filtern
+    out = out[~(out['Buchungsdatum'].isna() & (out['Verwendungszweck'].str.strip() == ''))]
+    out.reset_index(drop=True, inplace=True)
+    return out
+
 def parse_amex_date(date_str):
     # date_str könnte "18.12" oder "18.12.24" sein
     parts = date_str.split('.')
@@ -436,6 +536,23 @@ def upload_statement():
         # Jetzt df ins DB speichern
         insert_transactions_from_df(df)
 
+        return jsonify({"inserted": len(df)})
+    except Exception as e:
+        return jsonify({"detail": f"Parsing failed: {e}"}), 400
+
+
+# --- DKB Kreditkartenumsätze dedicated upload endpoint ---
+@app.route("/upload-statement-dkb-credit", methods=["POST"])
+def upload_statement_dkb_credit():
+    if 'file' not in request.files:
+        return jsonify({"detail": "No file part"}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"detail": "No selected file"}), 400
+    content = file.read()
+    try:
+        df = read_dkb_credit_csv_bytes(content)
+        insert_transactions_from_df(df)
         return jsonify({"inserted": len(df)})
     except Exception as e:
         return jsonify({"detail": f"Parsing failed: {e}"}), 400
