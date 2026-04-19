@@ -3,9 +3,8 @@
     <v-card>
       <v-card-title class="d-flex align-center flex-wrap">
         <span class="text-h6">Transaktionen</span>
-        <v-spacer></v-spacer>
+        <v-spacer />
 
-        <!-- Filterleiste -->
         <v-select
           class="mr-2"
           density="comfortable"
@@ -15,7 +14,6 @@
           v-model="filters.year"
           label="Jahr"
           clearable
-          @update:modelValue="scheduleLoad"
         />
         <v-select
           class="mr-2"
@@ -26,7 +24,16 @@
           v-model="filters.month"
           label="Monat"
           clearable
-          @update:modelValue="scheduleLoad"
+        />
+        <v-select
+          class="mr-2"
+          density="comfortable"
+          hide-details="auto"
+          style="max-width: 220px"
+          :items="sourceOptions"
+          v-model="filters.source"
+          label="Quelle"
+          clearable
         />
         <v-select
           class="mr-2"
@@ -36,7 +43,6 @@
           :items="classifiedOptions"
           v-model="filters.classified"
           label="Status"
-          @update:modelValue="scheduleLoad"
         />
         <v-btn color="primary" :loading="loading" :disabled="loading" @click="load">Neu laden</v-btn>
       </v-card-title>
@@ -45,48 +51,52 @@
         :headers="headers"
         :items="transactions"
         :items-per-page="15"
-        class="elevation-1"
+        density="compact"
+        class="elevation-1 transaction-table"
       >
-        <template #item.betrag="{ item }">
-          {{ formatCurrency(item.betrag) }}
+        <template #item.budget_month="{ item }">
+          <span class="mono-cell">{{ formatBudgetMonth(item.budget_month) }}</span>
+        </template>
+
+        <template #item.booking_date="{ item }">
+          <span class="mono-cell">{{ formatDate(item.value_date || item.booking_date) }}</span>
+        </template>
+
+        <template #item.description="{ item }">
+          <div class="description-cell">
+            <div class="description-main">{{ item.counterparty || item.description }}</div>
+            <div v-if="item.counterparty && item.description && item.counterparty !== item.description" class="description-sub">
+              {{ item.description }}
+            </div>
+          </div>
+        </template>
+
+        <template #item.amount="{ item }">
+          <span class="amount-cell">{{ formatCurrency(item.amount, item.currency) }}</span>
         </template>
 
         <template #item.status="{ item }">
-          <v-chip :color="rowClassified(item) ? 'success' : 'warning'" size="small" variant="elevated">
-            {{ rowClassified(item) ? 'klassifiziert' : 'unklassifiziert' }}
+          <v-chip :color="item.category_key ? 'success' : 'warning'" size="x-small" variant="tonal">
+            {{ item.category_key ? sourceLabel(item.classification_source) : 'Offen' }}
           </v-chip>
         </template>
 
-        <template #item.category="{ item }">
+        <template #item.category_key="{ item }">
           <v-select
-            :items="categoryNames"
-            v-model="selections[item.id].category"
+            :items="categoryOptions"
+            v-model="selections[item.id]"
             label="Kategorie"
-            outlined
             hide-details="auto"
-            density="comfortable"
-            style="min-width: 200px"
-            @update:modelValue="val => onCategoryChange(item.id, val)"
-          />
-        </template>
-
-        <template #item.subcategory="{ item }">
-          <v-select
-            :items="subOptions(item.id).map(s => s.name)"
-            v-model="selections[item.id].subcategory"
-            label="Subkategorie"
-            outlined
-            hide-details="auto"
-            density="comfortable"
-            style="min-width: 200px"
+            density="compact"
+            class="category-select"
+            clearable
           />
         </template>
 
         <template #item.actions="{ item }">
-          <v-btn-group>
-            <v-btn size="small" color="success" @click="saveClassification(item.id)">Speichern</v-btn>
-            <v-btn size="small" color="secondary" @click="addKeywordFromTx(item.id)">Keyword</v-btn>
-            <v-btn size="small" color="error" @click="deleteTransaction(item.id)">Löschen</v-btn>
+          <v-btn-group density="compact">
+            <v-btn size="x-small" color="success" min-width="34" @click="saveClassification(item.id)">OK</v-btn>
+            <v-btn size="x-small" color="error" min-width="58" @click="deleteTransaction(item.id)">Löschen</v-btn>
           </v-btn-group>
         </template>
       </v-data-table>
@@ -103,26 +113,31 @@ const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
 const loading = ref(false)
 const errorMsg = ref('')
-
 const transactions = ref([])
-const categories = reactive({ AUSGABEN: {}, EINKOMMEN: {} })
+const categories = ref([])
 const selections = reactive({})
 
 const headers = [
-  { text: 'Datum', value: 'buchungsdatum' },
-  { text: 'Empfänger', value: 'zahlungsempfaenger' },
-  { text: 'Verwendungszweck', value: 'verwendungszweck' },
-  { text: 'Betrag', value: 'betrag', align: 'end' },
-  { text: 'Status', value: 'status' },
-  { text: 'Kategorie', value: 'category' },
-  { text: 'Subkategorie', value: 'subcategory' },
-  { text: 'Aktionen', value: 'actions', sortable: false },
+  { title: 'Monat', key: 'budget_month', width: '58px' },
+  { title: 'Datum', key: 'booking_date', width: '62px' },
+  { title: 'Beschreibung', key: 'description', width: '34%' },
+  { title: 'Betrag', key: 'amount', align: 'end', width: '94px' },
+  { title: 'Status', key: 'status', width: '68px' },
+  { title: 'Kategorie', key: 'category_key', sortable: false, width: '260px' },
+  { title: '', key: 'actions', sortable: false, width: '138px' },
 ]
 
 const classifiedOptions = [
   { title: 'Alle', value: 'all' },
   { title: 'Klassifiziert', value: 'classified' },
   { title: 'Unklassifiziert', value: 'unclassified' },
+]
+
+const sourceOptions = [
+  { title: 'DKB Girokonto', value: 'dkb_giro' },
+  { title: 'Revolut', value: 'revolut' },
+  { title: 'American Express', value: 'amex' },
+  { title: 'Deutsche Bank Miles & More', value: 'deutsche_bank_miles_more' },
 ]
 
 const monthOptions = [
@@ -140,174 +155,116 @@ const monthOptions = [
   { title: 'Dez', value: '12' },
 ]
 
-const filters = reactive({ year: null, month: null, classified: 'all' })
+const filters = reactive({ year: null, month: null, source: null, classified: 'all' })
 
 const yearOptions = computed(() => {
-  const s = new Set()
+  const years = new Set()
   transactions.value.forEach(t => {
-    const y = (t.buchungsdatum || '').slice(0, 4)
-    if (/^\d{4}$/.test(y)) s.add(y)
+    const y = (t.budget_month || '').slice(0, 4)
+    if (/^\d{4}$/.test(y)) years.add(y)
   })
-  // Fallback: auch aus Backend aggregierten Jahren holen (optional)
-  return Array.from(s).sort()
+  const currentYear = new Date().getFullYear()
+  years.add(String(currentYear))
+  years.add(String(currentYear - 1))
+  return Array.from(years).sort().reverse()
 })
 
-const categoryNames = computed(() => Object.keys(categories.AUSGABEN || {}))
+const categoryOptions = computed(() => {
+  return categories.value
+    .filter(c => c.active)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(c => ({
+      title: `${c.group} · ${c.name}`,
+      value: c.key,
+    }))
+})
 
-function isSetCategory(v) {
-  if (v === null || v === undefined) return false
-  const s = String(v).trim()
-  if (s === '') return false
-  if (s.toLowerCase() === 'nan') return false
-  return true
+function sourceLabel(value) {
+  if (value === 'rule') return 'Regel'
+  if (value === 'manual') return 'Manuell'
+  if (value === 'imported') return 'Import'
+  return 'offen'
 }
 
-function rowClassified(t) {
-  if (isSetCategory(t?.cat_id)) return true
-  if (isSetCategory(t?.final_category)) return true
-  if (isSetCategory(t?.category_verwendungszweck)) return true
-  if (isSetCategory(t?.category_empfaenger)) return true
-  if (isSetCategory(t?.category_pflichtig)) return true
-  return false
+function formatCurrency(value, currency = 'EUR') {
+  const num = Number(value)
+  if (Number.isNaN(num)) return '—'
+  return num.toLocaleString('de-DE', { style: 'currency', currency: currency || 'EUR' })
 }
 
-function formatCurrency(val) {
-  const num = typeof val === 'number' ? val : parseFloat(String(val).replace(',', '.'))
-  if (isNaN(num)) return '—'
-  return num.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
+function formatBudgetMonth(value) {
+  if (!value || typeof value !== 'string' || value.length < 7) return '—'
+  return `${value.slice(5, 7)}/${value.slice(2, 4)}`
+}
+
+function formatDate(value) {
+  if (!value || typeof value !== 'string') return '—'
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return `${value.slice(8, 10)}.${value.slice(5, 7)}.`
+  }
+  return value
 }
 
 async function load() {
   loading.value = true
   errorMsg.value = ''
   try {
-    // Kategorien laden
-    const catsRes = await axios.get(`${API_BASE}/categories`)
-    Object.assign(categories, catsRes.data)
+    const [catsRes, txRes] = await Promise.all([
+      axios.get(`${API_BASE}/v2/categories`),
+      axios.get(`${API_BASE}/v2/transactions`, { params: buildParams() }),
+    ])
 
-    // Versuche neuen All-Transactions-Endpoint mit Filtern
-    const params = {}
-    if (filters.year) params.year = filters.year
-    if (filters.month) params.month = filters.month
-    if (filters.classified && filters.classified !== 'all') params.classified = filters.classified
+    categories.value = catsRes.data.categories || []
+    transactions.value = txRes.data.transactions || []
 
-    let txRes
-    try {
-      txRes = await axios.get(`${API_BASE}/transactions`, { params })
-    } catch (e) {
-      // Fallback auf bestehenden Unclassified-Endpoint, wenn 404
-      if (filters.classified === 'unclassified') {
-        txRes = await axios.get(`${API_BASE}/transactions/unclassified`)
-      } else {
-        throw e
-      }
-    }
-
-    transactions.value = txRes.data.transactions || txRes.data || []
-
-    // Selections initialisieren (auch für bereits klassifizierte)
     transactions.value.forEach(tx => {
-      const { cat, sub } = resolveCurrentCategory(tx)
-      selections[tx.id] = { category: cat, subcategory: sub }
+      selections[tx.id] = tx.category_key || null
     })
   } catch (err) {
     console.error('Fehler beim Laden:', err)
-    errorMsg.value = 'Konnte Transaktionen nicht laden.'
+    errorMsg.value = err.response?.data?.detail || 'Konnte Transaktionen nicht laden.'
   } finally {
     loading.value = false
   }
 }
 
-function resolveCurrentCategory(tx) {
-  const id = tx.cat_id ?? tx.final_category ?? tx.category_verwendungszweck ?? tx.category_empfaenger ?? tx.category_pflichtig
-  if (!id) return { cat: '', sub: '' }
-  const { catName, subName } = findCatAndSubById(id)
-  return { cat: catName || '', sub: subName || '' }
-}
-
-function findCatAndSubById(idInput) {
-  const idStr = String(idInput).trim()
-  const idNum = /^-?\d+$/.test(idStr) ? Number(idStr) : null
-
-  const match = (sub) => {
-    const sIdStr = String(sub.id).trim()
-    if (idNum !== null) {
-      const sIdNum = /^-?\d+$/.test(sIdStr) ? Number(sIdStr) : null
-      if (sIdNum !== null && sIdNum === idNum) return true
-    }
-    return sIdStr === idStr
-  }
-
-  for (const [catName, subs] of Object.entries(categories.AUSGABEN || {})) {
-    const found = subs.find(match)
-    if (found) return { catName, subName: found.name }
-  }
-  for (const [catName, subs] of Object.entries(categories.EINKOMMEN || {})) {
-    const found = subs.find(match)
-    if (found) return { catName, subName: found.name }
-  }
-  return { catName: '', subName: '' }
-}
-
-function subOptions(txId) {
-  const cat = selections[txId]?.category
-  if (!cat || !categories.AUSGABEN[cat]) return []
-  return categories.AUSGABEN[cat]
+function buildParams() {
+  const params = {}
+  if (filters.year) params.year = filters.year
+  if (filters.month) params.month = filters.month
+  if (filters.source) params.source = filters.source
+  if (filters.classified && filters.classified !== 'all') params.classified = filters.classified
+  return params
 }
 
 async function saveClassification(txId) {
-  const sel = selections[txId]
-  const sub = subOptions(txId).find(s => s.name === sel.subcategory)
-  if (!sub) {
-    alert('Bitte Subkategorie wählen')
-    return
-  }
   try {
-    await axios.post(`${API_BASE}/transactions/classify`, {
-      transaction_id: txId,
-      category_type: 'verwendungszweck',
-      category_id: String(sub.id),
+    const categoryKey = selections[txId] || null
+    await axios.post(`${API_BASE}/v2/transactions/${txId}/classify`, {
+      category_key: categoryKey,
     })
-    // Nach dem Speichern Status im UI behalten (nicht entfernen), aber selections neu setzen
     const tx = transactions.value.find(t => t.id === txId)
     if (tx) {
-      tx.category_verwendungszweck = String(sub.id)
-      tx.cat_id = String(sub.id)
+      tx.category_key = categoryKey
+      tx.classification_source = categoryKey ? 'manual' : 'unknown'
+      tx.classification_rule_key = null
+      tx.classification_confidence = categoryKey ? 1 : 0
     }
-  } catch (e) {
-    console.error('Fehler beim Speichern:', e)
-    alert('Konnte Klassifizierung nicht speichern')
-  }
-}
-
-async function addKeywordFromTx(txId) {
-  const tx = transactions.value.find(t => t.id === txId)
-  const kw = prompt('Keyword eingeben:', tx?.verwendungszweck || '')
-  if (!kw) return
-  const sel = selections[txId]
-  const sub = subOptions(txId).find(s => s.name === sel.subcategory)
-  try {
-    await axios.post(`${API_BASE}/keywords`, {
-      keyword: kw,
-      category: 'AUSGABEN',
-      subcategory: sel.category || '',
-      id: sub ? String(sub.id) : '0',
-    })
-    alert('Keyword hinzugefügt')
-  } catch (e) {
-    console.error('Fehler beim Hinzufügen des Keywords:', e)
-    alert('Konnte Keyword nicht hinzufügen')
+  } catch (err) {
+    console.error('Klassifikation konnte nicht gespeichert werden:', err)
+    alert(err.response?.data?.detail || 'Konnte Klassifikation nicht speichern')
   }
 }
 
 async function deleteTransaction(txId) {
+  if (!confirm('Diese Transaktion wirklich löschen?')) return
   try {
-    await axios.delete(`${API_BASE}/transactions/${txId}`)
-    transactions.value = transactions.value.filter(t => t.id !== txId)
+    await axios.delete(`${API_BASE}/v2/transactions/${txId}`)
+    transactions.value = transactions.value.filter(tx => tx.id !== txId)
     delete selections[txId]
-  } catch (error) {
-    console.error('Fehler beim Löschen der Transaktion:', error)
-    alert('Fehler beim Löschen der Transaktion')
+  } catch (err) {
+    console.error('Transaktion konnte nicht gelöscht werden:', err)
+    alert(err.response?.data?.detail || 'Konnte Transaktion nicht löschen')
   }
 }
 
@@ -316,19 +273,100 @@ onMounted(load)
 let reloadTimer = null
 function scheduleLoad() {
   if (reloadTimer) clearTimeout(reloadTimer)
-  reloadTimer = setTimeout(() => {
-    load()
-  }, 250)
+  reloadTimer = setTimeout(load, 250)
 }
 
-// Falls der Browser/Autocomplete den v-select-Wert ohne update-Event setzt
-watch(() => filters.year, () => scheduleLoad())
-watch(() => filters.month, () => scheduleLoad())
-watch(() => filters.classified, () => scheduleLoad())
-
-function onCategoryChange(txId, val) {
-  if (!selections[txId]) selections[txId] = { category: '', subcategory: '' }
-  selections[txId].category = val
-  selections[txId].subcategory = ''
-}
+watch(() => filters.year, scheduleLoad)
+watch(() => filters.month, scheduleLoad)
+watch(() => filters.source, scheduleLoad)
+watch(() => filters.classified, scheduleLoad)
 </script>
+
+<style scoped>
+.transaction-table {
+  table-layout: fixed;
+}
+
+.transaction-table :deep(table) {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.transaction-table :deep(th),
+.transaction-table :deep(td) {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  vertical-align: middle;
+}
+
+.mono-cell,
+.amount-cell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.description-cell {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.description-main,
+.description-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.description-main {
+  font-weight: 500;
+}
+
+.description-sub {
+  color: rgba(0, 0, 0, 0.58);
+  font-size: 0.76rem;
+  margin-top: 2px;
+}
+
+.category-select {
+  min-width: 0;
+  width: 100%;
+}
+
+.category-select :deep(.v-field) {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.category-select :deep(.v-field__input) {
+  min-width: 0;
+  overflow: hidden;
+  flex-wrap: nowrap;
+}
+
+.category-select :deep(.v-select__selection) {
+  min-width: 0;
+  overflow: hidden;
+  flex: 1 1 auto;
+}
+
+.category-select :deep(.v-select__selection-text) {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-select :deep(.v-field__field) {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.transaction-table :deep(.v-table__wrapper) {
+  overflow-x: hidden;
+}
+
+.transaction-table :deep(td:last-child) {
+  white-space: nowrap;
+}
+</style>

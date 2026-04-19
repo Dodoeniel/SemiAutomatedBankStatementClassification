@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "categories": [
+    { "key": "income.earnings.salary", "type": "income", "group": "EINKÜNFTE", "name": "Gehalt", "sort_order": 10, "active": true },
+    { "key": "income.earnings.other", "type": "income", "group": "EINKÜNFTE", "name": "Sonstige Einnahmen", "sort_order": 20, "active": true },
+    { "key": "income.earnings.rent-lina", "type": "income", "group": "EINKÜNFTE", "name": "Miete Lina", "sort_order": 30, "active": true },
+    { "key": "income.earnings.tricount", "type": "income", "group": "EINKÜNFTE", "name": "Tricount", "sort_order": 40, "active": true },
+
+    { "key": "expense.daily.groceries", "type": "expense", "group": "Tägl. Leben", "name": "Lebensmittel, Drogeriemarkt", "sort_order": 100, "active": true },
+    { "key": "expense.daily.public-transport", "type": "expense", "group": "Tägl. Leben", "name": "Öffentlicher Personenverkehr", "sort_order": 110, "active": true },
+    { "key": "expense.daily.canteen", "type": "expense", "group": "Tägl. Leben", "name": "Kantine", "sort_order": 120, "active": true },
+    { "key": "expense.daily.restaurants", "type": "expense", "group": "Tägl. Leben", "name": "Essen gehen (Restaurant, Café, Bäcker)", "sort_order": 130, "active": true },
+    { "key": "expense.daily.cash", "type": "expense", "group": "Tägl. Leben", "name": "Bargeld", "sort_order": 140, "active": true },
+    { "key": "expense.daily.clothing", "type": "expense", "group": "Tägl. Leben", "name": "Kleidung", "sort_order": 150, "active": true },
+    { "key": "expense.daily.hairdresser", "type": "expense", "group": "Tägl. Leben", "name": "Friseur", "sort_order": 160, "active": true },
+    { "key": "expense.daily.gifts", "type": "expense", "group": "Tägl. Leben", "name": "Geschenke", "sort_order": 170, "active": true },
+    { "key": "expense.daily.purchases", "type": "expense", "group": "Tägl. Leben", "name": "Anschaffungen", "sort_order": 180, "active": true },
+
+    { "key": "expense.housing.rent", "type": "expense", "group": "WOHNUNG", "name": "Miete", "sort_order": 200, "active": true },
+    { "key": "expense.housing.electricity", "type": "expense", "group": "WOHNUNG", "name": "Strom", "sort_order": 210, "active": true },
+    { "key": "expense.housing.broadcast-fee", "type": "expense", "group": "WOHNUNG", "name": "GEZ", "sort_order": 220, "active": true },
+    { "key": "expense.housing.internet", "type": "expense", "group": "WOHNUNG", "name": "Internet", "sort_order": 230, "active": true },
+
+    { "key": "expense.entertainment.hosting-cloud", "type": "expense", "group": "UNTERHALTUNG", "name": "Strato, GoDaddy (August), Apple Cloud", "sort_order": 300, "active": true },
+    { "key": "expense.entertainment.netflix", "type": "expense", "group": "UNTERHALTUNG", "name": "Netflix", "sort_order": 310, "active": true },
+    { "key": "expense.entertainment.disney-plus", "type": "expense", "group": "UNTERHALTUNG", "name": "Disney Plus", "sort_order": 320, "active": true },
+    { "key": "expense.entertainment.amazon-prime", "type": "expense", "group": "UNTERHALTUNG", "name": "Amazon Prime", "sort_order": 330, "active": true },
+    { "key": "expense.entertainment.music", "type": "expense", "group": "UNTERHALTUNG", "name": "Spotify/Apple Music", "sort_order": 340, "active": true },
+    { "key": "expense.entertainment.audible", "type": "expense", "group": "UNTERHALTUNG", "name": "Audible", "sort_order": 350, "active": true },
+    { "key": "expense.entertainment.admissions", "type": "expense", "group": "UNTERHALTUNG", "name": "Eintritte (Museum, Zoo etc.)", "sort_order": 360, "active": true },
+    { "key": "expense.entertainment.books-games", "type": "expense", "group": "UNTERHALTUNG", "name": "Bücher (inkl. Bücherhallen), Spiele etc", "sort_order": 370, "active": true },
+
+    { "key": "expense.health.disability-insurance", "type": "expense", "group": "GESUNDHEIT", "name": "Volkswohlbund BU", "sort_order": 400, "active": true },
+    { "key": "expense.health.doctor-pharmacy", "type": "expense", "group": "GESUNDHEIT", "name": "Arzt, Apotheke etc.", "sort_order": 410, "active": true },
+    { "key": "expense.health.glasses", "type": "expense", "group": "GESUNDHEIT", "name": "Brille (inkl. Versicherung)", "sort_order": 420, "active": true },
+    { "key": "expense.health.arag", "type": "expense", "group": "GESUNDHEIT", "name": "ARAG Krankenversicherung (April)", "sort_order": 430, "active": true },
+
+    { "key": "expense.travel.transport", "type": "expense", "group": "URLAUB", "name": "Fahr-/Flugpreis", "sort_order": 500, "active": true },
+    { "key": "expense.travel.lodging", "type": "expense", "group": "URLAUB", "name": "Unterbringung", "sort_order": 510, "active": true },
+    { "key": "expense.travel.food", "type": "expense", "group": "URLAUB", "name": "Essen", "sort_order": 520, "active": true },
+    { "key": "expense.travel.souvenirs", "type": "expense", "group": "URLAUB", "name": "Souvenirs", "sort_order": 530, "active": true },
+    { "key": "expense.travel.admissions", "type": "expense", "group": "URLAUB", "name": "Eintritte", "sort_order": 540, "active": true },
+    { "key": "expense.travel.rental-car", "type": "expense", "group": "URLAUB", "name": "Mietwagen", "sort_order": 550, "active": true },
+
+    { "key": "expense.subscriptions.dkb", "type": "expense", "group": "Gebuehren/Abos", "name": "Konto DKB", "sort_order": 600, "active": true },
+    { "key": "expense.subscriptions.amex", "type": "expense", "group": "Gebuehren/Abos", "name": "AMEX", "sort_order": 610, "active": true },
+    { "key": "expense.subscriptions.aldi-talk", "type": "expense", "group": "Gebuehren/Abos", "name": "Aldi Talk", "sort_order": 620, "active": true },
+    { "key": "expense.subscriptions.spd", "type": "expense", "group": "Gebuehren/Abos", "name": "SPD", "sort_order": 630, "active": true },
+    { "key": "expense.subscriptions.mm-credit-card", "type": "expense", "group": "Gebuehren/Abos", "name": "M&M Kreditkarte", "sort_order": 640, "active": true },
+    { "key": "expense.subscriptions.lottery", "type": "expense", "group": "Gebuehren/Abos", "name": "Fernsehlotterie", "sort_order": 650, "active": true },
+    { "key": "expense.subscriptions.donations", "type": "expense", "group": "Gebuehren/Abos", "name": "Spenden", "sort_order": 660, "active": true },
+
+    { "key": "expense.insurance.home-contents", "type": "expense", "group": "sonst. Versicherungen", "name": "Hausrat", "sort_order": 700, "active": true },
+    { "key": "expense.insurance.legal", "type": "expense", "group": "sonst. Versicherungen", "name": "Rechtschutz (September)", "sort_order": 710, "active": true },
+    { "key": "expense.insurance.liability", "type": "expense", "group": "sonst. Versicherungen", "name": "Haftpflicht", "sort_order": 720, "active": true },
+    { "key": "expense.insurance.travel", "type": "expense", "group": "sonst. Versicherungen", "name": "Reise", "sort_order": 730, "active": true },
+    { "key": "expense.insurance.lv1871", "type": "expense", "group": "sonst. Versicherungen", "name": "LV 1871", "sort_order": 740, "active": true },
+    { "key": "expense.insurance.lr-annual", "type": "expense", "group": "sonst. Versicherungen", "name": "L&R Jahresbeitrag", "sort_order": 750, "active": true },
+    { "key": "expense.insurance.continentale", "type": "expense", "group": "sonst. Versicherungen", "name": "Continentale Privat und Basisrente", "sort_order": 760, "active": true },
+    { "key": "expense.insurance.hanse-merkur-glasses", "type": "expense", "group": "sonst. Versicherungen", "name": "Hanse Merkur (Brille) März", "sort_order": 770, "active": true },
+    { "key": "expense.insurance.alte-leipziger", "type": "expense", "group": "sonst. Versicherungen", "name": "Alte Leipziger", "sort_order": 780, "active": true },
+
+    { "key": "expense.annual.dav", "type": "expense", "group": "Jahresbeitraege", "name": "DAV", "sort_order": 800, "active": true },
+    { "key": "expense.annual.boardgamearena", "type": "expense", "group": "Jahresbeitraege", "name": "BoardgameArena Februar", "sort_order": 810, "active": true }
+  ]
+}
+
