@@ -11,8 +11,18 @@ import pandas as pd
 import json
 import os
 import sqlite3
+import hashlib
 from typing import Optional
 from datetime import datetime
+from decimal import Decimal
+
+from v2.analytics import AnalyticsService
+from v2.category_store import CategoryStore
+from v2.classifier import RuleBasedClassifier
+from v2.models import Transaction
+from v2.parsers import parse_statement, supported_sources
+from v2.rule_store import RuleStore
+from v2.storage import DuplicateImportError, TransactionRepository, init_v2_db
 
 # --- Robust date to YYYY-MM helper ---
 def to_year_month(d) -> Optional[str]:
@@ -60,6 +70,8 @@ CATEGORIES_PATH = os.getenv("CATEGORIES_PATH", os.path.join(APP_DIR, "categories
 KEYWORDS_PATH = os.getenv("KEYWORDS_PATH", os.path.join(DATA_DIR, "keywords.json"))
 SUMMARY_PATH = os.getenv("SUMMARY_PATH", os.path.join(DATA_DIR, "summary_spendings.json"))
 DB_PATH = os.getenv("DB_PATH", os.path.join(DATA_DIR, "transactions.db"))
+V2_CATEGORIES_PATH = os.getenv("V2_CATEGORIES_PATH", os.path.join(APP_DIR, "data", "categories.v2.json"))
+V2_RULES_PATH = os.getenv("V2_RULES_PATH", os.path.join(APP_DIR, "data", "classification_rules.v2.json"))
 
 # --- Simple DB helper (sqlite) ---
 def init_db():
@@ -83,6 +95,7 @@ def init_db():
     conn.close()
 
 init_db()
+init_v2_db(DB_PATH)
 
 # --- Load categories and keywords ---
 with open(CATEGORIES_PATH, "r", encoding="utf-8") as f:
@@ -513,6 +526,248 @@ def clean_amount_string(amount_str: str) -> str:
 # --- App ---
 app = Flask(__name__)
 CORS(app)
+
+
+def get_v2_services():
+    category_store = CategoryStore.from_json_file(V2_CATEGORIES_PATH)
+    rule_store = RuleStore.from_json_file(V2_RULES_PATH, category_store=category_store)
+    classifier = RuleBasedClassifier(rule_store)
+    return category_store, rule_store, classifier
+
+
+def get_v2_analytics():
+    category_store, _, _ = get_v2_services()
+    return AnalyticsService(DB_PATH, category_store)
+
+
+@app.route("/v2/categories", methods=["GET"])
+def get_v2_categories():
+    try:
+        category_store, _, _ = get_v2_services()
+        return jsonify(category_store.as_api_payload())
+    except Exception as e:
+        return jsonify({"detail": f"Error loading v2 categories: {e}"}), 500
+
+
+@app.route("/v2/classification-rules", methods=["GET"])
+def get_v2_classification_rules():
+    try:
+        _, rule_store, _ = get_v2_services()
+        return jsonify(rule_store.as_api_payload())
+    except Exception as e:
+        return jsonify({"detail": f"Error loading v2 classification rules: {e}"}), 500
+
+
+@app.route("/v2/sources", methods=["GET"])
+def get_v2_sources():
+    return jsonify({"sources": supported_sources()})
+
+
+@app.route("/v2/classify-preview", methods=["POST"])
+def classify_v2_preview():
+    try:
+        payload = request.get_json() or {}
+        _, _, classifier = get_v2_services()
+        tx = Transaction(
+            booking_date=payload.get("booking_date"),
+            value_date=payload.get("value_date"),
+            amount=Decimal(str(payload.get("amount", "0"))),
+            currency=payload.get("currency") or "EUR",
+            description=payload.get("description") or "",
+            counterparty=payload.get("counterparty"),
+            source=payload.get("source"),
+            source_account=payload.get("source_account"),
+            external_id=payload.get("external_id"),
+            raw_data=payload.get("raw_data") or {},
+        )
+        result = classifier.classify(tx)
+        return jsonify({
+            "category_key": result.category_key,
+            "classification_source": result.source.value,
+            "classification_rule_key": result.rule_key,
+            "classification_confidence": result.confidence,
+        })
+    except Exception as e:
+        return jsonify({"detail": f"Error classifying transaction: {e}"}), 500
+
+
+@app.route("/v2/transactions", methods=["GET"])
+def get_v2_transactions():
+    try:
+        year = (request.args.get("year") or "").strip() or None
+        month = (request.args.get("month") or "").strip() or None
+        budget_month = (request.args.get("budget_month") or "").strip() or None
+        source = (request.args.get("source") or "").strip() or None
+        classified = (request.args.get("classified") or "all").strip().lower()
+        limit = min(request.args.get("limit", default=500, type=int), 2000)
+        offset = max(request.args.get("offset", default=0, type=int), 0)
+
+        if classified not in ("all", "classified", "unclassified"):
+            return jsonify({"detail": "classified must be all, classified or unclassified"}), 400
+
+        repo = TransactionRepository(DB_PATH)
+        transactions = repo.list(
+            year=year,
+            month=month,
+            budget_month=budget_month,
+            source=source,
+            classified=classified,
+            limit=limit,
+            offset=offset,
+        )
+        return jsonify({"transactions": transactions})
+    except Exception as e:
+        return jsonify({"detail": f"Error fetching v2 transactions: {e}"}), 500
+
+
+@app.route("/v2/transactions/<int:tx_id>/classify", methods=["POST"])
+def classify_v2_transaction(tx_id):
+    try:
+        payload = request.get_json() or {}
+        category_key = payload.get("category_key")
+        if category_key is not None:
+            category_key = str(category_key).strip() or None
+
+        category_store, _, _ = get_v2_services()
+        if category_key is not None:
+            category_store.require(category_key)
+
+        repo = TransactionRepository(DB_PATH)
+        updated = repo.set_manual_category(tx_id, category_key)
+        if not updated:
+            return jsonify({"detail": f"Transaction {tx_id} not found"}), 404
+        return jsonify({"ok": True, "category_key": category_key})
+    except KeyError as e:
+        return jsonify({"detail": str(e)}), 400
+    except Exception as e:
+        return jsonify({"detail": f"Error updating v2 transaction: {e}"}), 500
+
+
+@app.route("/v2/transactions/<int:tx_id>", methods=["DELETE"])
+def delete_v2_transaction(tx_id):
+    try:
+        repo = TransactionRepository(DB_PATH)
+        deleted = repo.delete(tx_id)
+        if not deleted:
+            return jsonify({"detail": f"Transaction {tx_id} not found"}), 404
+        return jsonify({"ok": True, "deleted": 1})
+    except Exception as e:
+        return jsonify({"detail": f"Error deleting v2 transaction: {e}"}), 500
+
+
+@app.route("/v2/analytics/summary", methods=["GET"])
+def get_v2_analytics_summary():
+    try:
+        year = (request.args.get("year") or "").strip() or None
+        month = (request.args.get("month") or "").strip() or None
+        return jsonify(get_v2_analytics().summary(year=year, month=month))
+    except Exception as e:
+        return jsonify({"detail": f"Error generating v2 summary: {e}"}), 500
+
+
+@app.route("/v2/analytics/monthly", methods=["GET"])
+def get_v2_analytics_monthly():
+    try:
+        return jsonify(get_v2_analytics().monthly())
+    except Exception as e:
+        return jsonify({"detail": f"Error generating v2 monthly analytics: {e}"}), 500
+
+
+@app.route("/v2/analytics/details", methods=["GET"])
+def get_v2_analytics_details():
+    try:
+        category_key = (request.args.get("category_key") or "").strip()
+        budget_month = (request.args.get("budget_month") or "").strip()
+        if not category_key or not budget_month:
+            return jsonify({"detail": "category_key and budget_month are required"}), 400
+        return jsonify(get_v2_analytics().details(category_key=category_key, budget_month=budget_month))
+    except KeyError as e:
+        return jsonify({"detail": str(e)}), 404
+    except Exception as e:
+        return jsonify({"detail": f"Error fetching v2 analytics details: {e}"}), 500
+
+
+@app.route("/v2/analytics/unclassified", methods=["GET"])
+def get_v2_analytics_unclassified():
+    try:
+        year = (request.args.get("year") or "").strip() or None
+        month = (request.args.get("month") or "").strip() or None
+        return jsonify(get_v2_analytics().unclassified(year=year, month=month))
+    except Exception as e:
+        return jsonify({"detail": f"Error generating v2 unclassified stats: {e}"}), 500
+
+
+@app.route("/v2/upload-statement", methods=["POST"])
+def upload_statement_v2():
+    if "file" not in request.files:
+        return jsonify({"detail": "No file part"}), 400
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"detail": "No selected file"}), 400
+
+    source = (request.form.get("source") or request.form.get("bank") or "").strip()
+    if not source:
+        return jsonify({"detail": "Missing statement source"}), 400
+
+    try:
+        _, _, classifier = get_v2_services()
+        repo = TransactionRepository(DB_PATH)
+        file_bytes = file.read()
+        file_hash = hashlib.sha256(file_bytes).hexdigest()
+        transactions = parse_statement(source, file_bytes)
+        import_batch_id = repo.create_import_batch(
+            source=source,
+            filename=file.filename,
+            file_hash=file_hash,
+            transaction_count=len(transactions),
+        )
+
+        inserted_ids = []
+        classified_inserted = 0
+        skipped_duplicates = 0
+        for tx in transactions:
+            result = classifier.classify(tx)
+            tx.apply_classification(result)
+            tx.import_batch_id = import_batch_id
+            inserted_id = repo.insert(tx)
+            if inserted_id is None:
+                skipped_duplicates += 1
+            else:
+                inserted_ids.append(inserted_id)
+                if tx.category_key:
+                    classified_inserted += 1
+
+        repo.update_import_batch_counts(
+            import_batch_id=import_batch_id,
+            inserted_count=len(inserted_ids),
+            duplicate_count=skipped_duplicates,
+        )
+
+        return jsonify({
+            "duplicate_file": False,
+            "import_batch_id": import_batch_id,
+            "inserted": len(inserted_ids),
+            "skipped_duplicates": skipped_duplicates,
+            "parsed": len(transactions),
+            "classified": classified_inserted,
+            "unclassified": len(inserted_ids) - classified_inserted,
+            "ids": inserted_ids,
+        })
+    except DuplicateImportError as e:
+        return jsonify({
+            "duplicate_file": True,
+            "import_batch_id": e.import_batch_id,
+            "inserted": 0,
+            "skipped_duplicates": 0,
+            "parsed": 0,
+            "classified": 0,
+            "unclassified": 0,
+            "ids": [],
+        }), 200
+    except ValueError as e:
+        return jsonify({"detail": str(e)}), 400
+    except Exception as e:
+        return jsonify({"detail": f"v2 import failed: {e}"}), 500
 
 @app.route("/upload-statement", methods=["POST"])
 def upload_statement():

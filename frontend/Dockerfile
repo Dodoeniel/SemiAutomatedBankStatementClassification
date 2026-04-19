@@ -14,11 +14,12 @@ RUN npm run build
 FROM nginx:alpine
 COPY --from=build /app/dist/ /usr/share/nginx/html
 
-# Nginx Config für SPA
+# Nginx Config für SPA + API proxy to the backend service in docker-compose
 RUN printf "server { \
   listen 80; \
   server_name _; \
   root /usr/share/nginx/html; \
   index index.html; \
+  location /api/ { proxy_pass http://backend:8000/; } \
   location / { try_files \$uri /index.html; } \
   }" > /etc/nginx/conf.d/default.conf

@@ -26,6 +26,7 @@ AMEX_processed_files/
 Revolut_unprocessed_files/
 Revolut_processed_files/
 old_python_notebook/
+example_bankstatements/
 
 # Persönliche Konfigurationen
 keywords.json
@@ -36,4 +37,3 @@ budget.d-schoepflin.de.conf
 *.PDF
 *.csv
 *.CSV
-

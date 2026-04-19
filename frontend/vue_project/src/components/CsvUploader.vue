@@ -2,11 +2,13 @@
   <v-card class="pa-4">
     <v-card-title>Bank Statement hochladen</v-card-title>
     <v-card-text>
-      <v-radio-group v-model="selectedBank" inline>
-        <v-radio label="DKB Girokonto" value="dkb" > </v-radio>
-        <v-radio label="DKB Kreditkarte" value="dkb_credit"></v-radio>
-        <v-radio label="Revolut" value="revolut" > </v-radio>
-        <v-radio label="American Express" value="amex" > </v-radio>
+      <v-radio-group v-model="selectedSource" inline>
+        <v-radio
+          v-for="source in sources"
+          :key="source.value"
+          :label="source.title"
+          :value="source.value"
+        />
       </v-radio-group>
 
       <v-file-input
@@ -20,7 +22,7 @@
     <v-card-actions>
       <v-btn
         color="primary"
-        :disabled="!selectedFile || !selectedBank"
+        :disabled="!selectedFile || !selectedSource"
         @click="uploadFile"
       >
         Hochladen
@@ -48,16 +50,21 @@ import { ref } from 'vue'
 import axios from 'axios'
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
-const selectedBank = ref('')
+const sources = [
+  { title: 'DKB Girokonto', value: 'dkb_giro' },
+  { title: 'Revolut', value: 'revolut' },
+  { title: 'American Express', value: 'amex' },
+  { title: 'Deutsche Bank Miles & More', value: 'deutsche_bank_miles_more' },
+]
+
+const selectedSource = ref('')
 const selectedFile = ref(null)
 const loading = ref(false)
 const message = ref('')
 const error = ref(false)
 
-console.log('VITE_API_BASE:', import.meta.env.VITE_API_BASE);
-
 async function uploadFile() {
-  if (!selectedFile.value || !selectedBank.value) return
+  if (!selectedFile.value || !selectedSource.value) return
   loading.value = true
   message.value = ''
   error.value = false
@@ -65,18 +72,24 @@ async function uploadFile() {
   try {
     const formData = new FormData()
     formData.append('file', selectedFile.value)
-    formData.append('bank', selectedBank.value)
+    formData.append('source', selectedSource.value)
 
-    // Ziel-Endpoint je nach Bank
-    const endpoint = selectedBank.value === 'dkb_credit'
-      ? `${API_BASE}/upload-statement-dkb-credit`
-      : `${API_BASE}/upload-statement`
-
-    const res = await axios.post(endpoint, formData, {
+    const res = await axios.post(`${API_BASE}/v2/upload-statement`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
 
-    message.value = `Erfolgreich hochgeladen: ${res.data.inserted} Einträge`
+    const data = res.data
+    if (data.duplicate_file) {
+      message.value = 'Diese Datei wurde bereits importiert. Es wurden keine neuen Transaktionen angelegt.'
+    } else {
+      message.value = [
+        `Gelesen: ${data.parsed}`,
+        `Neu: ${data.inserted}`,
+        `Klassifiziert: ${data.classified}`,
+        `Offen: ${data.unclassified}`,
+        `Duplikate: ${data.skipped_duplicates}`,
+      ].join(' · ')
+    }
     selectedFile.value = null
   } catch (err) {
     error.value = true
