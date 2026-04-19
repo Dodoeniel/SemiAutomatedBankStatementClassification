@@ -15,6 +15,7 @@
     { "key": "expense.daily.hairdresser", "type": "expense", "group": "Tägl. Leben", "name": "Friseur", "sort_order": 160, "active": true },
     { "key": "expense.daily.gifts", "type": "expense", "group": "Tägl. Leben", "name": "Geschenke", "sort_order": 170, "active": true },
     { "key": "expense.daily.purchases", "type": "expense", "group": "Tägl. Leben", "name": "Anschaffungen", "sort_order": 180, "active": true },
+    { "key": "expense.daily.sports", "type": "expense", "group": "Tägl. Leben", "name": "Sport", "sort_order": 190, "active": true },
 
     { "key": "expense.housing.rent", "type": "expense", "group": "WOHNUNG", "name": "Miete", "sort_order": 200, "active": true },
     { "key": "expense.housing.electricity", "type": "expense", "group": "WOHNUNG", "name": "Strom", "sort_order": 210, "active": true },
@@ -64,4 +65,3 @@
     { "key": "expense.annual.boardgamearena", "type": "expense", "group": "Jahresbeitraege", "name": "BoardgameArena Februar", "sort_order": 810, "active": true }
   ]
 }
-
