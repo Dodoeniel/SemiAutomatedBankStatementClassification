@@ -50,6 +50,8 @@
     { "key": "expense.subscriptions.mm-credit-card", "type": "expense", "group": "Gebuehren/Abos", "name": "M&M Kreditkarte", "sort_order": 640, "active": true },
     { "key": "expense.subscriptions.lottery", "type": "expense", "group": "Gebuehren/Abos", "name": "Fernsehlotterie", "sort_order": 650, "active": true },
     { "key": "expense.subscriptions.donations", "type": "expense", "group": "Gebuehren/Abos", "name": "Spenden", "sort_order": 660, "active": true },
+    { "key": "expense.subscriptions.ki-services", "type": "expense", "group": "Gebuehren/Abos", "name": "KI Services Abo", "sort_order": 670, "active": true },
+    { "key": "expense.subscriptions.tax-declaration", "type": "expense", "group": "Gebuehren/Abos", "name": "Steuererklärung", "sort_order": 680, "active": true },
 
     { "key": "expense.insurance.home-contents", "type": "expense", "group": "sonst. Versicherungen", "name": "Hausrat", "sort_order": 700, "active": true },
     { "key": "expense.insurance.legal", "type": "expense", "group": "sonst. Versicherungen", "name": "Rechtschutz (September)", "sort_order": 710, "active": true },
