@@ -73,6 +73,9 @@
       { "id": 51, "name": "DAV", "entries": [] },
       { "id": 52, "name": "BoardgameArena Februar", "entries": [] }
     ],
-    "Sonstiges": []
+    "Sonstiges": [
+      { "id": 53, "name": "Steuerprogramme", "entries": [] },
+      { "id": 54, "name": "Sonstige Ausgaben", "entries": [] }
+    ]
   }
 }
